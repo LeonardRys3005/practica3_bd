@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registro de Litigantes - México</title>
+<style>
+  :root {
+    --azul: #1f3a5f;
+    --azul-claro: #e8eef6;
+    --borde: #d0d7e2;
+    --texto: #1c2430;
+    --rojo: #b3261e;
+    --verde: #1b7f4b;
+    --fondo: #f5f7fa;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: var(--fondo); color: var(--texto); }
+  header { background: var(--azul); color: #fff; padding: 18px 24px; }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header p { margin: 4px 0 0; font-size: .85rem; opacity: .85; }
+  main { max-width: 1280px; margin: 0 auto; padding: 20px; }
+  .card { background: #fff; border: 1px solid var(--borde); border-radius: 8px; padding: 18px; margin-bottom: 20px; }
+  .card h2 { margin: 0 0 14px; font-size: 1.1rem; color: var(--azul); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .full { grid-column: 1 / -1; }
+  label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: 4px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 6px; font-size: .9rem; font-family: inherit; background: #fff; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #8fb0dd; border-color: #8fb0dd; }
+  .error { color: var(--rojo); font-size: .75rem; min-height: 1em; }
+  .acciones { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button { padding: 8px 14px; border: 0; border-radius: 6px; cursor: pointer; font-size: .85rem; font-weight: 600; }
+  .btn-primario { background: var(--azul); color: #fff; }
+  .btn-sec { background: var(--azul-claro); color: var(--azul); }
+  .btn-peligro { background: #fbe9e7; color: var(--rojo); }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar input[type=search] { flex: 1; min-width: 220px; }
+  .toolbar select { width: auto; }
+  .tabla-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { padding: 9px 10px; border-bottom: 1px solid var(--borde); text-align: left; vertical-align: top; }
+  th { background: var(--azul-claro); color: var(--azul); white-space: nowrap; }
+  tr:hover td { background: #fafcff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 700; background: var(--azul-claro); color: var(--azul); }
+  .badge.Activo { background: #e3f4ea; color: var(--verde); }
+  .badge.Concluido { background: #eceff3; color: #556; }
+  .badge.Suspendido { background: #fff4d6; color: #8a6100; }
+  .vacio { text-align: center; padding: 30px; color: #778; }
+  .aviso { font-size: .78rem; color: #556; background: #fff9e6; border: 1px solid #f0e2a8; padding: 10px 12px; border-radius: 6px; }
+  .contador { font-size: .85rem; color: #556; margin-left: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚖️ Registro de Litigantes</h1>
+  <p>Base de datos de partes en procedimientos judiciales y administrativos en México</p>
+</header>
+
+<main>
+
+  <div class="aviso" style="margin-bottom:20px">
+    <strong>Aviso:</strong> los datos se guardan únicamente en este navegador (localStorage). Contienen datos personales,
+    por lo que su tratamiento debe cumplir con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares
+    (LFPDPPP) y, en su caso, el secreto profesional. Haz respaldos periódicos con "Exportar JSON".
+  </div>
+
+  <section class="card">
+    <h2 id="tituloForm">Nuevo registro</h2>
+    <form id="form" novalidate>
+      <input type="hidden" id="id">
+      <div class="grid">
+        <div class="full">
+          <label for="nombre">Nombre completo / Razón social *</label>
+          <input id="nombre" required maxlength="200">
+          <div class="error" id="e-nombre"></div>
+        </div>
+        <div>
+          <label for="tipoPersona">Tipo de persona *</label>
+          <select id="tipoPersona">
+            <option>Física</option>
+            <option>Moral</option>
+          </select>
+        </div>
+        <div>
+          <label for="curp">CURP</label>
+          <input id="curp" maxlength="18" style="text-transform:uppercase">
+          <div class="error" id="e-curp"></div>
+        </div>
+        <div>
+          <label for="rfc">RFC</label>
+          <input id="rfc" maxlength="13" style="text-transform:uppercase">
+          <div class="error" id="e-rfc"></div>
+        </div>
+        <div>
+          <label for="telefono">Teléfono</label>
+          <input id="telefono" type="tel" maxlength="20" placeholder="55 1234 5678">
+        </div>
+        <div>
+          <label for="correo">Correo electrónico</label>
+          <input id="correo" type="email" maxlength="120">
+          <div class="error" id="e-correo"></div>
+        </div>
+        <div>
+          <label for="estado">Entidad federativa</label>
+          <select id="estado"></select>
+        </div>
+        <div class="full">
+          <label for="domicilio">Domicilio para oír y recibir notificaciones</label>
+          <input id="domicilio" maxlength="300">
+        </div>
+
+        <div>
+          <label for="expediente">Número de expediente *</label>
+          <input id="expediente" maxlength="60" placeholder="Ej. 123/2026">
+          <div class="error" id="e-expediente"></div>
+        </div>
+        <div>
+          <label for="organo">Juzgado / Tribunal / Autoridad</label>
+          <input id="organo" maxlength="200" placeholder="Ej. Juzgado 5º Civil CDMX">
+        </div>
+        <div>
+          <label for="materia">Materia</label>
+          <select id="materia">
+            <option>Civil</option><option>Penal</option><option>Familiar</option>
+            <option>Mercantil</option><option>Laboral</option><option>Amparo</option>
+            <option>Administrativa</option><option>Fiscal</option><option>Agraria</option>
+            <option>Electoral</option><option>Otra</option>
+          </select>
+        </div>
+        <div>
+          <label for="caracter">Carácter en el juicio</label>
+          <select id="caracter">
+            <option>Actor</option><option>Demandado</option><option>Quejoso</option>
+            <option>Tercero interesado</option><option>Víctima / Ofendido</option>
+            <option>Imputado</option><option>Denunciante</option><option>Otro</option>
+          </select>
+        </div>
+        <div>
+          <label for="abogado">Abogado responsable</label>
+          <input id="abogado" maxlength="150">
+        </div>
+        <div>
+          <label for="cedula">Cédula profesional</label>
+          <input id="cedula" maxlength="10" inputmode="numeric">
+        </div>
+        <div>
+          <label for="fechaInicio">Fecha de inicio</label>
+          <input id="fechaInicio" type="date">
+        </div>
+        <div>
+          <label for="estatus">Estatus</label>
+          <select id="estatus">
+            <option>Activo</option><option>Suspendido</option><option>Concluido</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="notas">Notas</label>
+          <textarea id="notas" rows="3" maxlength="1000"></textarea>
+        </div>
+      </div>
+      <div class="acciones">
+        <button type="submit" class="btn-primario" id="btnGuardar">Guardar registro</button>
+        <button type="button" class="btn-sec" id="btnCancelar">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Registros</h2>
+    <div class="toolbar">
+      <input type="search" id="buscar" placeholder="Buscar por nombre, CURP, RFC, expediente, abogado...">
+      <select id="fMateria"><option value="">Todas las materias</option></select>
+      <select id="fEstatus">
+        <option value="">Todos los estatus</option>
+        <option>Activo</option><option>Suspendido</option><option>Concluido</option>
+      </select>
+      <span class="contador" id="contador"></span>
+    </div>
+    <div class="toolbar">
+      <button class="btn-sec" id="btnCSV">Exportar CSV</button>
+      <button class="btn-sec" id="btnJSON">Exportar JSON</button>
+      <button class="btn-sec" id="btnImportar">Importar JSON</button>
+      <input type="file" id="archivo" accept="application/json" hidden>
+      <button class="btn-peligro" id="btnBorrarTodo" style="margin-left:auto">Borrar todo</button>
+    </div>
+    <div class="tabla-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th><th>Tipo</th><th>CURP / RFC</th><th>Contacto</th>
+            <th>Expediente</th><th>Órgano</th><th>Materia</th><th>Carácter</th>
+            <th>Abogado</th><th>Inicio</th><th>Estatus</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  const KEY = "litigantes_mx_v1";
+  const ESTADOS = ["Aguascalientes","Baja California","Baja California Sur","Campeche","Chiapas","Chihuahua",
+    "Ciudad de México","Coahuila","Colima","Durango","Estado de México","Guanajuato","Guerrero","Hidalgo",
+    "Jalisco","Michoacán","Morelos","Nayarit","Nuevo León","Oaxaca","Puebla","Querétaro","Quintana Roo",
+    "San Luis Potosí","Sinaloa","Sonora","Tabasco","Tamaulipas","Tlaxcala","Veracruz","Yucatán","Zacatecas"];
+
+  const CURP_RE = /^[A-Z]{4}\d{6}[HMX][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/;
+  const RFC_RE  = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+  const MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const $ = id => document.getElementById(id);
+  const campos = ["nombre","tipoPersona","curp","rfc","telefono","correo","estado","domicilio",
+    "expediente","organo","materia","caracter","abogado","cedula","fechaInicio","estatus","notas"];
+
+  let datos = cargar();
+
+  function cargar() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function guardar() {
+    try { localStorage.setItem(KEY, JSON.stringify(datos)); }
+    catch (e) { alert("No se pudo guardar en el navegador."); }
+  }
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function uid() {
+    return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  }
+
+  // Inicializar selects
+  $("estado").innerHTML = ESTADOS.map(e => `<option>${e}</option>`).join("");
+  [...$("materia").options].forEach(o => {
+    const op = document.createElement("option");
+    op.textContent = o.textContent;
+    $("fMateria").appendChild(op);
+  });
+
+  function validar() {
+    let ok = true;
+    ["nombre","curp","rfc","correo","expediente"].forEach(k => $("e-" + k).textContent = "");
+    const v = k => $(k).value.trim();
+
+    if (!v("nombre")) { $("e-nombre").textContent = "Campo obligatorio."; ok = false; }
+    if (!v("expediente")) { $("e-expediente").textContent = "Campo obligatorio."; ok = false; }
+    if (v("curp") && !CURP_RE.test(v("curp").toUpperCase())) { $("e-curp").textContent = "CURP con formato inválido."; ok = false; }
+    if (v("rfc") && !RFC_RE.test(v("rfc").toUpperCase())) { $("e-rfc").textContent = "RFC con formato inválido."; ok = false; }
+    if (v("correo") && !MAIL_RE.test(v("correo"))) { $("e-correo").textContent = "Correo inválido."; ok = false; }
+    return ok;
+  }
+
+  function limpiar() {
+    $("form").reset();
+    $("id").value = "";
+    $("tituloForm").textContent = "Nuevo registro";
+    $("btnGuardar").textContent = "Guardar registro";
+    ["nombre","curp","rfc","correo","expediente"].forEach(k => $("e-" + k).textContent = "");
+  }
+
+  $("form").addEventListener("submit", e => {
+    e.preventDefault();
+    if (!validar()) return;
+    const reg = { id: $("id").value || uid() };
+    campos.forEach(c => reg[c] = $(c).value.trim());
+    reg.curp = reg.curp.toUpperCase();
+    reg.rfc = reg.rfc.toUpperCase();
+
+    const i = datos.findIndex(d => d.id === reg.id);
+    if (i >= 0) datos[i] = reg; else datos.unshift(reg);
+    guardar();
+    limpiar();
+    render();
+  });
+
+  $("btnCancelar").addEventListener("click", limpiar);
+
+  function editar(id) {
+    const r = datos.find(d => d.id === id);
+    if (!r) return;
+    campos.forEach(c => $(c).value = r[c] ?? "");
+    $("id").value = r.id;
+    $("tituloForm").textContent = "Editar registro";
+    $("btnGuardar").textContent = "Actualizar registro";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function eliminar(id) {
+    const r = datos.find(d => d.id === id);
+    if (r && confirm(`¿Eliminar el registro de "${r.nombre}"?`)) {
+      datos = datos.filter(d => d.id !== id);
+      guardar();
+      render();
+    }
+  }
+
+  function filtrados() {
+    const q = $("buscar").value.trim().toLowerCase();
+    const m = $("fMateria").value, s = $("fEstatus").value;
+    return datos.filter(d => {
+      if (m && d.materia !== m) return false;
+      if (s && d.estatus !== s) return false;
+      if (!q) return true;
+      return [d.nombre, d.curp, d.rfc, d.expediente, d.abogado, d.organo, d.correo, d.telefono]
+        .some(x => (x || "").toLowerCase().includes(q));
+    });
+  }
+
+  function render() {
+    const lista = filtrados();
+    $("contador").textContent = `${lista.length} de ${datos.length} registros`;
+    if (!lista.length) {
+      $("tbody").innerHTML = `<tr><td colspan="12" class="vacio">No hay registros para mostrar.</td></tr>`;
+      return;
+    }
+    $("tbody").innerHTML = lista.map(d => `
+      <tr>
+        <td><strong>${esc(d.nombre)}</strong><br><small>${esc(d.estado)}</small></td>
+        <td>${esc(d.tipoPersona)}</td>
+        <td>${esc(d.curp)}${d.curp && d.rfc ? "<br>" : ""}${esc(d.rfc)}</td>
+        <td>${esc(d.telefono)}${d.telefono && d.correo ? "<br>" : ""}${esc(d.correo)}</td>
+        <td>${esc(d.expediente)}</td>
+        <td>${esc(d.organo)}</td>
+        <td><span class="badge">${esc(d.materia)}</span></td>
+        <td>${esc(d.caracter)}</td>
+        <td>${esc(d.abogado)}${d.cedula ? `<br><small>Céd. ${esc(d.cedula)}</small>` : ""}</td>
+        <td>${esc(d.fechaInicio)}</td>
+        <td><span class="badge ${esc(d.estatus)}">${esc(d.estatus)}</span></td>
+        <td>
+          <button class="btn-sec" data-ed="${esc(d.id)}">Editar</button>
+          <button class="btn-peligro" data-del="${esc(d.id)}">Borrar</button>
+        </td>
+      </tr>`).join("");
+  }
+
+  $("tbody").addEventListener("click", e => {
+    const ed = e.target.closest("[data-ed]");
+    const del = e.target.closest("[data-del]");
+    if (ed) editar(ed.dataset.ed);
+    if (del) eliminar(del.dataset.del);
+  });
+
+  ["buscar","fMateria","fEstatus"].forEach(id => $(id).addEventListener("input", render));
+
+  // Exportaciones
+  function descargar(nombre, contenido, tipo) {
+    const blob = new Blob([contenido], { type: tipo });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  $("btnCSV").addEventListener("click", () => {
+    const celda = v => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
+    const filas = [campos.map(celda).join(",")]
+      .concat(filtrados().map(d => campos.map(c => celda(d[c])).join(",")));
+    descargar("litigantes.csv", "\ufeff" + filas.join("\r\n"), "text/csv;charset=utf-8");
+  });
+
+  $("btnJSON").addEventListener("click", () =>
+    descargar("litigantes_respaldo.json", JSON.stringify(datos, null, 2), "application/json"));
+
+  $("btnImportar").addEventListener("click", () => $("archivo").click());
+  $("archivo").addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const lector = new FileReader();
+    lector.onload = () => {
+      try {
+        const arr = JSON.parse(lector.result);
+        if (!Array.isArray(arr)) throw new Error();
+        const ids = new Set(datos.map(d => d.id));
+        let n = 0;
+        arr.forEach(r => {
+          if (r && typeof r === "object" && r.nombre && !ids.has(r.id)) {
+            const limpio = { id: r.id || uid() };
+            campos.forEach(c => limpio[c] = String(r[c] ?? ""));
+            datos.push(limpio); n++;
+          }
+        });
+        guardar(); render();
+        alert(`Se importaron ${n} registros.`);
+      } catch (err) {
+        alert("El archivo no es un respaldo JSON válido.");
+      }
+      $("archivo").value = "";
+    };
+    lector.readAsText(f);
+  });
+
+  $("btnBorrarTodo").addEventListener("click", () => {
+    if (datos.length && confirm("Esto eliminará TODOS los registros. ¿Continuar?")) {
+      datos = []; guardar(); render();
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
