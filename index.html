@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de Trading</title>
+<style>
+  :root{
+    --bg:#0e1621; --card:#17212f; --line:#243246; --txt:#e6edf5; --mut:#8a9bb0;
+    --up:#22c55e; --down:#ef4444; --accent:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt)}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+  h1{font-size:20px;margin:0}
+  .sub{color:var(--mut);font-size:13px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button,input,select{font:inherit;color:var(--txt);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+  button{cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.on{background:var(--accent);border-color:var(--accent)}
+  main{padding:20px;max-width:1100px;margin:auto}
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .box .l{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .box .v{font-size:22px;font-weight:600;margin-top:4px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;transition:border-color .3s}
+  .card.flash-up{border-color:var(--up)} .card.flash-down{border-color:var(--down)}
+  .top{display:flex;justify-content:space-between;align-items:baseline}
+  .sym{font-weight:700;font-size:18px} .name{color:var(--mut);font-size:12px}
+  .price{font-size:26px;font-weight:600;margin:8px 0 2px}
+  .chg{font-size:14px;font-weight:600}
+  .up{color:var(--up)} .down{color:var(--down)}
+  canvas{width:100%;height:50px;margin-top:8px}
+  .alert-row{display:flex;gap:6px;margin-top:10px}
+  .alert-row input{width:100%;padding:6px 8px;font-size:13px}
+  .alert-row button{padding:6px 10px;font-size:13px}
+  .alert-tag{font-size:12px;color:var(--mut);margin-top:6px;min-height:16px}
+  #toasts{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:10;max-width:320px}
+  .toast{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px #0008;animation:in .25s ease}
+  .toast.up{border-left-color:var(--up);color:var(--txt)} .toast.down{border-left-color:var(--down);color:var(--txt)}
+  @keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .log{margin-top:24px}
+  .log h2{font-size:16px}
+  #log{list-style:none;padding:0;margin:0;max-height:220px;overflow:auto}
+  #log li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  #log time{color:var(--mut);margin-right:8px}
+  .note{color:var(--mut);font-size:12px;margin-top:24px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>📈 Panel de Trading</h1>
+    <div class="sub" id="status">Mercado simulado · actualizando cada 2 s</div>
+  </div>
+  <div class="controls">
+    <label class="sub">Avisar si cambia más de
+      <select id="thr">
+        <option value="0.5">0.5%</option>
+        <option value="1" selected>1%</option>
+        <option value="2">2%</option>
+        <option value="3">3%</option>
+      </select>
+    </label>
+    <button id="btnNotif">🔔 Activar notificaciones</button>
+    <button id="btnSound" class="on">🔊 Sonido</button>
+    <button id="btnPause">⏸ Pausar</button>
+  </div>
+</header>
+
+<main>
+  <section class="summary">
+    <div class="box"><div class="l">Suben</div><div class="v up" id="sUp">0</div></div>
+    <div class="box"><div class="l">Bajan</div><div class="v down" id="sDown">0</div></div>
+    <div class="box"><div class="l">Mejor del día</div><div class="v" id="sBest">—</div></div>
+    <div class="box"><div class="l">Peor del día</div><div class="v" id="sWorst">—</div></div>
+  </section>
+
+  <section class="grid" id="grid"></section>
+
+  <section class="log">
+    <h2>Historial de avisos</h2>
+    <ul id="log"></ul>
+  </section>
+
+  <p class="note">
+    Los precios son <b>simulados</b> para demostración. Para datos reales, conecta una API
+    (Alpha Vantage, Finnhub, Twelve Data, etc.) en la función <code>obtenerPrecios()</code> del código.
+    Esto no es asesoría financiera.
+  </p>
+</main>
+
+<div id="toasts"></div>
+
+<script>
+/* ========= Configuración ========= */
+const INTERVALO_MS = 2000;
+const ACCIONES = [
+  { sym:"AAPL",  name:"Apple",     price:228.40 },
+  { sym:"MSFT",  name:"Microsoft", price:431.10 },
+  { sym:"GOOGL", name:"Alphabet",  price:176.25 },
+  { sym:"AMZN",  name:"Amazon",    price:187.90 },
+  { sym:"TSLA",  name:"Tesla",     price:251.60 },
+  { sym:"NVDA",  name:"NVIDIA",    price:138.75 },
+  { sym:"META",  name:"Meta",      price:572.30 },
+  { sym:"NFLX",  name:"Netflix",   price:699.80 },
+];
+
+/* ========= Estado ========= */
+const estado = {};
+ACCIONES.forEach(a => estado[a.sym] = {
+  ...a, open:a.price, last:a.price, hist:[a.price], alertaPrecio:null, avisadoPct:false
+});
+let pausado = false, sonido = true;
+
+/* ========= Datos =========
+   Reemplaza esta función por una llamada real a tu API.
+   Debe devolver un objeto { AAPL: 229.1, MSFT: 430.5, ... } */
+async function obtenerPrecios(){
+  const out = {};
+  for(const s in estado){
+    const p = estado[s].last;
+    out[s] = Math.max(1, p * (1 + (Math.random()-0.5) * 0.008));
+  }
+  return out;
+  /* Ejemplo con API real (necesitas tu propia clave):
+  const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=AAPL&token=TU_API_KEY`);
+  const j = await r.json(); return { AAPL: j.c };
+  */
+}
+
+/* ========= UI ========= */
+const grid = document.getElementById("grid");
+function crearTarjetas(){
+  grid.innerHTML = "";
+  for(const s in estado){
+    const d = document.createElement("div");
+    d.className = "card"; d.id = "c-"+s;
+    d.innerHTML = `
+      <div class="top"><div><div class="sym">${s}</div><div class="name">${estado[s].name}</div></div></div>
+      <div class="price" id="p-${s}"></div>
+      <div class="chg" id="g-${s}"></div>
+      <canvas id="k-${s}" width="250" height="50"></canvas>
+      <div class="alert-row">
+        <input type="number" step="0.01" placeholder="Avisar al llegar a $" id="i-${s}">
+        <button data-s="${s}">Fijar</button>
+      </div>
+      <div class="alert-tag" id="t-${s}"></div>`;
+    grid.appendChild(d);
+  }
+  grid.addEventListener("click", e=>{
+    const s = e.target.dataset && e.target.dataset.s;
+    if(!s) return;
+    const v = parseFloat(document.getElementById("i-"+s).value);
+    if(isNaN(v)){ estado[s].alertaPrecio=null; document.getElementById("t-"+s).textContent=""; return; }
+    estado[s].alertaPrecio = { objetivo:v, arriba: v > estado[s].last };
+    document.getElementById("t-"+s).textContent = `🎯 Alerta en $${v.toFixed(2)}`;
+  });
+}
+
+function dibujar(s){
+  const c = document.getElementById("k-"+s), x = c.getContext("2d");
+  const h = estado[s].hist, w = c.width, ht = c.height;
+  x.clearRect(0,0,w,ht);
+  const mn = Math.min(...h), mx = Math.max(...h), r = (mx-mn)||1;
+  x.beginPath();
+  h.forEach((v,i)=>{
+    const px = i/(Math.max(h.length-1,1))*w, py = ht-4-((v-mn)/r)*(ht-8);
+    i?x.lineTo(px,py):x.moveTo(px,py);
+  });
+  x.strokeStyle = h[h.length-1] >= estado[s].open ? "#22c55e" : "#ef4444";
+  x.lineWidth = 2; x.stroke();
+}
+
+function pintar(){
+  let up=0, down=0, best=null, worst=null;
+  for(const s in estado){
+    const e = estado[s], pct = (e.last-e.open)/e.open*100, dif = e.last-e.open;
+    const cls = pct>=0 ? "up":"down";
+    document.getElementById("p-"+s).textContent = "$"+e.last.toFixed(2);
+    const g = document.getElementById("g-"+s);
+    g.className = "chg "+cls;
+    g.textContent = `${pct>=0?"▲":"▼"} ${dif>=0?"+":""}${dif.toFixed(2)} (${pct>=0?"+":""}${pct.toFixed(2)}%)`;
+    dibujar(s);
+    pct>=0?up++:down++;
+    if(!best||pct>best.pct) best={s,pct};
+    if(!worst||pct<worst.pct) worst={s,pct};
+  }
+  document.getElementById("sUp").textContent = up;
+  document.getElementById("sDown").textContent = down;
+  document.getElementById("sBest").textContent = `${best.s} ${best.pct>=0?"+":""}${best.pct.toFixed(2)}%`;
+  document.getElementById("sWorst").textContent = `${worst.s} ${worst.pct>=0?"+":""}${worst.pct.toFixed(2)}%`;
+}
+
+/* ========= Avisos ========= */
+function aviso(msg, tipo){
+  // 1) Toast en pantalla
+  const t = document.createElement("div");
+  t.className = "toast "+(tipo||"");
+  t.textContent = msg;
+  document.getElementById("toasts").appendChild(t);
+  setTimeout(()=>t.remove(), 6000);
+  // 2) Historial
+  const li = document.createElement("li");
+  li.innerHTML = `<time>${new Date().toLocaleTimeString("es-MX")}</time>${msg}`;
+  const log = document.getElementById("log");
+  log.prepend(li);
+  // 3) Notificación del navegador
+  if("Notification" in window && Notification.permission==="granted"){
+    new Notification("Panel de Trading", { body: msg });
+  }
+  // 4) Sonido
+  if(sonido) beep(tipo==="down"?300:700);
+}
+
+let audioCtx;
+function beep(freq){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; g.gain.value = 0.05;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime+0.15);
+  }catch(e){}
+}
+
+function revisarAlertas(s, previo){
+  const e = estado[s], umbral = parseFloat(document.getElementById("thr").value);
+  const pct = (e.last-e.open)/e.open*100;
+
+  // Cambio del día supera el umbral
+  if(Math.abs(pct) >= umbral && !e.avisadoPct){
+    e.avisadoPct = true;
+    aviso(`${s} ${pct>=0?"sube":"baja"} ${Math.abs(pct).toFixed(2)}% hoy ($${e.last.toFixed(2)})`, pct>=0?"up":"down");
+  } else if(Math.abs(pct) < umbral*0.8){
+    e.avisadoPct = false; // se rearma
+  }
+
+  // Precio objetivo del usuario
+  if(e.alertaPrecio){
+    const {objetivo, arriba} = e.alertaPrecio;
+    if((arriba && e.last>=objetivo) || (!arriba && e.last<=objetivo)){
+      aviso(`🎯 ${s} alcanzó tu precio objetivo de $${objetivo.toFixed(2)} (ahora $${e.last.toFixed(2)})`, arriba?"up":"down");
+      e.alertaPrecio = null;
+      document.getElementById("t-"+s).textContent = "✅ Alerta cumplida";
+    }
+  }
+}
+
+/* ========= Ciclo principal ========= */
+async function tick(){
+  if(pausado) return;
+  try{
+    const precios = await obtenerPrecios();
+    for(const s in precios){
+      const e = estado[s], previo = e.last;
+      e.last = precios[s];
+      e.hist.push(e.last); if(e.hist.length>40) e.hist.shift();
+      const card = document.getElementById("c-"+s);
+      card.classList.remove("flash-up","flash-down");
+      void card.offsetWidth;
+      card.classList.add(e.last>=previo?"flash-up":"flash-down");
+      setTimeout(()=>card.classList.remove("flash-up","flash-down"),400);
+      revisarAlertas(s, previo);
+    }
+    pintar();
+    document.getElementById("status").textContent =
+      "Mercado simulado · última actualización " + new Date().toLocaleTimeString("es-MX");
+  }catch(err){
+    document.getElementById("status").textContent = "Error al obtener precios: "+err.message;
+  }
+}
+
+/* ========= Botones ========= */
+document.getElementById("btnNotif").onclick = async ()=>{
+  if(!("Notification" in window)){ alert("Tu navegador no soporta notificaciones."); return; }
+  const p = await Notification.requestPermission();
+  document.getElementById("btnNotif").textContent = p==="granted" ? "🔔 Notificaciones activas" : "🔕 Notificaciones bloqueadas";
+};
+document.getElementById("btnSound").onclick = e=>{
+  sonido = !sonido; e.target.classList.toggle("on", sonido);
+  e.target.textContent = sonido ? "🔊 Sonido" : "🔇 Sonido";
+};
+document.getElementById("btnPause").onclick = e=>{
+  pausado = !pausado; e.target.textContent = pausado ? "▶ Reanudar" : "⏸ Pausar";
+};
+
+crearTarjetas(); pintar(); setInterval(tick, INTERVALO_MS);
+</script>
+</body>
+</html>
